@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,6 +8,14 @@ const supabase = createClient(
 );
 
 export async function GET() {
+  // 🔒 Next.js 16 requires await
+  const cookieStore = await cookies();
+  const auth = cookieStore.get("admin_auth");
+
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { data, error } = await supabase
     .from("leads")
     .select("*")

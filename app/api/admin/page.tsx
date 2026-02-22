@@ -12,42 +12,40 @@ interface Lead {
 }
 
 export default function AdminPage() {
+  const [authenticated, setAuthenticated] = useState(false);
+  const [password, setPassword] = useState("");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(false);
-  const [password, setPassword] = useState("");
-  const [authenticated, setAuthenticated] = useState(false);
+
+  const ADMIN_PASSWORD = "admin123";
 
   const handleLogin = async () => {
-    const res = await fetch("/api/admin/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ password }),
-    });
-
-    if (!res.ok) {
+    if (password !== ADMIN_PASSWORD) {
       alert("Incorrect password");
       return;
     }
 
     setAuthenticated(true);
-    fetchLeads();
+    await fetchLeads();
   };
 
   const fetchLeads = async () => {
     setLoading(true);
 
-    const res = await fetch("/api/leads");
+    try {
+      const response = await fetch("/api/leads");
 
-    if (!res.ok) {
+      if (!response.ok) {
+        throw new Error("Failed to fetch leads");
+      }
+
+      const data = await response.json();
+      setLeads(data);
+    } catch (error) {
+      console.error(error);
       alert("Error fetching leads");
-      setLoading(false);
-      return;
     }
 
-    const data = await res.json();
-    setLeads(data);
     setLoading(false);
   };
 
@@ -74,21 +72,23 @@ export default function AdminPage() {
     );
   }
 
+  const getStatusStyle = (status: string) => {
+  switch (status) {
+    case "approved":
+      return "bg-green-600 text-white";
+    case "contacted":
+      return "bg-blue-600 text-white";
+    case "rejected":
+      return "bg-red-600 text-white";
+    case "follow-up":
+      return "bg-yellow-500 text-black";
+    default:
+      return "bg-gray-600 text-white"; // new
+  }
+};
   return (
     <main className="min-h-screen bg-gray-950 text-white p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-        
-        <button
-          onClick={async () => {
-            await fetch("/api/admin/logout", { method: "POST" });
-            window.location.reload();
-          }}
-          className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded"
-        >
-          Logout
-        </button>
-      </div>
+      <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
 
       {loading ? (
         <p>Loading leads...</p>
@@ -110,7 +110,42 @@ export default function AdminPage() {
                 <td className="p-2 border border-gray-700">{lead.email}</td>
                 <td className="p-2 border border-gray-700">{lead.phone}</td>
                 <td className="p-2 border border-gray-700">
-                  {lead.status}
+                  <select
+                    value={lead.status}
+                    onChange={async (e) => {
+                      const newStatus = e.target.value;
+                    
+                      try {
+                        const res = await fetch(`/api/leads/${lead.id}`, {
+                          method: "PATCH",
+                          headers: {
+                            "Content-Type": "application/json",
+                          },
+                          body: JSON.stringify({ status: newStatus }),
+                        });
+                      
+                        if (!res.ok) {
+                          throw new Error("Failed to update status");
+                        }
+                      
+                        // Update UI immediately
+                        setLeads((prev) =>
+                          prev.map((l) =>
+                            l.id === lead.id ? { ...l, status: newStatus } : l
+                          )
+                        );
+                      } catch (err) {
+                        alert("Error updating status");
+                      }
+                    }}
+                    className={`p-1 rounded ${getStatusStyle(lead.status)}`}
+                  >
+                    <option value="new">New</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="follow-up">Follow-up</option>
+                  </select>
                 </td>
                 <td className="p-2 border border-gray-700">
                   {new Date(lead.created_at).toLocaleString()}
